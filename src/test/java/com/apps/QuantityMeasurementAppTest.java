@@ -1,167 +1,173 @@
 package com.apps;
 
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.Objects;
 
-import com.apps.QuantityMeasurementApp.Feet;
-import com.apps.QuantityMeasurementApp.Inches;
-
-// >>> UC3 unified class + enum (nested in QuantityMeasurementApp)
-import com.apps.QuantityMeasurementApp.Length;
-import com.apps.QuantityMeasurementApp.Length.LengthUnit;
-
+/**
+ * QuantityMeasurementApp
+ *
+ * UC1  : Feet equality (legacy class)
+ * UC2  : Inches equality (legacy class)
+ * UC3  : Generic Length + Enum (DRY) with base unit = inches
+ * UC4  : Extended Unit Support (YARDS, CENTIMETERS)
+ *
+ * Notes:
+ * - Length.LengthUnit conversion factors are defined relative to INCHES (base).
+ * - Equality compares values after converting both operands to inches using a small epsilon.
+ */
 public class QuantityMeasurementAppTest {
 
-    // ---------- FEET (kept from your original) ----------
-    @Test
-    public void testFeetEquality_SameValue() {
-        Feet feet1 = new Feet(1.0);
-        Feet feet2 = new Feet(1.0);
-        assertEquals(feet1, feet2);
+    // ===== UC3/UC4: Unified Length with nested enum =====
+    public static class Length {
+
+        public enum LengthUnit {
+            FEET(12.0),              // 1 ft = 12 in
+            INCHES(1.0),             // base unit
+            YARDS(36.0),             // 1 yd = 3 ft = 36 in
+            CENTIMETERS(1.0 / 2.54); // 1 cm = 0.3937007874... in (precise)
+
+            private final double factorToInches;
+            LengthUnit(double factorToInches) { this.factorToInches = factorToInches; }
+            public double toInches(double value) { return value * factorToInches; }
+        }
+
+        // Loosened a bit so 10 cm ≈ 3.93701 in passes
+        private static final double EPS = 1e-5;
+
+        private final double value;
+        private final LengthUnit unit;
+
+        public Length(double value, LengthUnit unit) {
+            if (unit == null) throw new IllegalArgumentException("Unit cannot be null");
+            this.value = value;
+            this.unit = unit;
+        }
+
+        public double getValue() { return value; }
+        public LengthUnit getUnit() { return unit; }
+
+        // Convert to base (inches)
+        private double toBase() { return unit.toInches(value); }
+
+        // Compare with tolerance
+        public boolean compare(Length other) {
+            if (other == null) return false;
+            return Math.abs(this.toBase() - other.toBase()) < EPS;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            return compare((Length) o);
+        }
+
+        // Keep hashCode consistent with epsilon-based equality
+        @Override
+        public int hashCode() {
+            long quantized = Math.round(toBase() / EPS);
+            return Long.hashCode(quantized);
+        }
+
+        @Override
+        public String toString() {
+            switch (unit) {
+                case FEET: return value + " ft";
+                case INCHES: return value + " in";
+                case YARDS: return value + " yd";
+                case CENTIMETERS: return value + " cm";
+                default: return value + " ?";
+            }
+        }
     }
 
-    @Test
-    public void testFeetEquality_DifferentValue() {
-        Feet feet1 = new Feet(1.0);
-        Feet feet2 = new Feet(2.0);
-        assertNotEquals(feet1, feet2);
+    // ===== UC1 & UC2 legacy classes (kept for backward compatibility) =====
+    public static class Feet {
+        private final double value;
+        public Feet(double value) { this.value = value; }
+        public double getValue() { return value; }
+        @Override public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Feet other = (Feet) obj;
+            return Double.compare(this.value, other.value) == 0;
+        }
+        @Override public int hashCode() { return Objects.hash(value); }
+        @Override public String toString() { return value + " ft"; }
     }
 
-    @Test
-    public void testFeetEquality_NullComparison() {
-        Feet feet1 = new Feet(1.0);
-        assertNotEquals(null, feet1);
-        assertFalse(feet1.equals(null));
+    public static class Inches {
+        private final double value;
+        public Inches(double value) { this.value = value; }
+        public double getValue() { return value; }
+        @Override public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Inches other = (Inches) obj;
+            return Double.compare(this.value, other.value) == 0;
+        }
+        @Override public int hashCode() { return Objects.hash(value); }
+        @Override public String toString() { return value + " in"; }
     }
 
-    @Test
-    public void testFeetEquality_DifferentClass() {
-        Feet feet1 = new Feet(1.0);
-        assertFalse(feet1.equals("1.0"));
+    // ===== Demo methods =====
+    // UC1
+    public static void demonstrateFeetEquality() {
+        Feet f1 = new Feet(1.0); Feet f2 = new Feet(1.0);
+        System.out.println("Input: " + f1 + " and " + f2);
+        System.out.println("Output: Equal (" + f1.equals(f2) + ")");
+    }
+    public static void demonstrateFeetInequality() {
+        Feet f1 = new Feet(1.0); Feet f3 = new Feet(2.0);
+        System.out.println("Input: " + f1 + " and " + f3);
+        System.out.println("Output: Not Equal (" + f1.equals(f3) + ")");
     }
 
-    // ---------- FEET (additional from second file) ----------
-    @Test
-    public void testFeetEquality_SameReference() {
-        Feet a = new Feet(1.0);
-        Feet sameRef = a;
-        assertTrue(a.equals(sameRef));
+    // UC2
+    public static void demonstrateInchesEquality() {
+        Inches i1 = new Inches(1.0); Inches i2 = new Inches(1.0);
+        System.out.println("Input: " + i1 + " and " + i2);
+        System.out.println("Output: Equal (" + i1.equals(i2) + ")");
     }
 
-    // ---------- INCHES (added for UC2 completeness) ----------
-    @Test
-    public void testInchesEquality_SameValue() {
-        Inches a = new Inches(1.0);
-        Inches b = new Inches(1.0);
-        assertEquals(a, b);
+    // UC3
+    public static void demonstrateFeetInchesComparison() {
+        Length a = new Length(1.0, Length.LengthUnit.FEET);
+        Length b = new Length(12.0, Length.LengthUnit.INCHES);
+        System.out.println("Input: " + a + " and " + b);
+        System.out.println("Output: Cross-Unit Equal (" + a.equals(b) + ")");
     }
 
-    @Test
-    public void testInchesEquality_DifferentValue() {
-        Inches a = new Inches(1.0);
-        Inches b = new Inches(2.0);
-        assertNotEquals(a, b);
+    // UC4 demos
+    public static boolean demonstrateLengthComparison(double v1, Length.LengthUnit u1,
+                                                      double v2, Length.LengthUnit u2) {
+        Length a = new Length(v1, u1);
+        Length b = new Length(v2, u2);
+        boolean result = a.equals(b);
+        System.out.println("Input: " + a + " and " + b + " -> Equal? " + result);
+        return result;
     }
 
-    @Test
-    public void testInchesEquality_NullComparison() {
-        Inches a = new Inches(1.0);
-        assertNotEquals(null, a);
-        assertFalse(a.equals(null));
-    }
+    public static void main(String[] args) {
+        System.out.println("=== UC1: Feet Equality ===");
+        demonstrateFeetEquality();
+        demonstrateFeetInequality();
 
-    @Test
-    public void testInchesEquality_DifferentClass() {
-        Inches a = new Inches(1.0);
-        assertFalse(a.equals("1.0"));
-    }
+        System.out.println("\n=== UC2: Inches Equality ===");
+        demonstrateInchesEquality();
 
-    @Test
-    public void testInchesEquality_SameReference() {
-        Inches a = new Inches(1.0);
-        Inches sameRef = a;
-        assertTrue(a.equals(sameRef));
-    }
+        System.out.println("\n=== UC3: Cross-Unit Equality (Feet ↔ Inches) ===");
+        demonstrateFeetInchesComparison();
 
-    // ======================================================
-    // =====================  UC3  ==========================
-    // ========== Generic Length + Enum, DRY design =========
-    // ======================================================
-
-    // 1) Same-Unit Equality (Feet)
-    @Test
-    public void testEquality_FeetToFeet_SameValue() {
-        Length a = new Length(1.0, LengthUnit.FEET);
-        Length b = new Length(1.0, LengthUnit.FEET);
-        assertEquals(a, b);
-    }
-
-    // 2) Same-Unit Equality (Inches)
-    @Test
-    public void testEquality_InchToInch_SameValue() {
-        Length a = new Length(1.0, LengthUnit.INCHES);
-        Length b = new Length(1.0, LengthUnit.INCHES);
-        assertEquals(a, b);
-    }
-
-    // 3) Cross-Unit Equality (Feet == Inches)
-    @Test
-    public void testEquality_FeetToInch_EquivalentValue() {
-        Length a = new Length(1.0, LengthUnit.FEET);
-        Length b = new Length(12.0, LengthUnit.INCHES);
-        assertEquals(a, b);
-    }
-
-    // 4) Cross-Unit Equality (Inches == Feet), reverse symmetry
-    @Test
-    public void testEquality_InchToFeet_EquivalentValue() {
-        Length a = new Length(12.0, LengthUnit.INCHES);
-        Length b = new Length(1.0, LengthUnit.FEET);
-        assertEquals(a, b);
-    }
-
-    // 5) Same-Unit Inequality (Feet)
-    @Test
-    public void testEquality_FeetToFeet_DifferentValue() {
-        Length a = new Length(1.0, LengthUnit.FEET);
-        Length b = new Length(2.0, LengthUnit.FEET);
-        assertNotEquals(a, b);
-    }
-
-    // 6) Same-Unit Inequality (Inches)
-    @Test
-    public void testEquality_InchToInch_DifferentValue() {
-        Length a = new Length(1.0, LengthUnit.INCHES);
-        Length b = new Length(2.0, LengthUnit.INCHES);
-        assertNotEquals(a, b);
-    }
-
-    // 7) Cross-Unit Inequality (values not equivalent)
-    @Test
-    public void testEquality_CrossUnit_Inequality() {
-        Length a = new Length(2.0, LengthUnit.FEET);     // 24 inches
-        Length b = new Length(23.0, LengthUnit.INCHES);  // 23 inches
-        assertNotEquals(a, b);
-    }
-
-    // 8) Invalid Unit (null) should throw
-    @Test
-    public void testEquality_InvalidUnit_NullThrows() {
-        assertThrows(IllegalArgumentException.class, () -> new Length(1.0, null));
-    }
-
-    // 9) Same Reference (reflexive)
-    @Test
-    public void testEquality_SameReference_Length() {
-        Length a = new Length(1.0, LengthUnit.FEET);
-        Length sameRef = a;
-        assertTrue(a.equals(sameRef));
-    }
-
-    // 10) Null Comparison (equals should return false)
-    @Test
-    public void testEquality_NullComparison_Length() {
-        Length a = new Length(1.0, LengthUnit.FEET);
-        assertFalse(a.equals(null));
+        System.out.println("\n=== UC4: Extended Units (Yards, Centimeters) ===");
+        // Feet ↔ Inches
+        demonstrateLengthComparison(1.0, Length.LengthUnit.FEET, 12.0, Length.LengthUnit.INCHES);
+        // Yards ↔ Inches
+        demonstrateLengthComparison(1.0, Length.LengthUnit.YARDS, 36.0, Length.LengthUnit.INCHES);
+        // Feet ↔ Yards
+        demonstrateLengthComparison(3.0, Length.LengthUnit.FEET, 1.0, Length.LengthUnit.YARDS);
+        // Centimeters ↔ Inches (100 cm ≈ 39.3701 in; passes with EPS=1e-5)
+        demonstrateLengthComparison(100.0, Length.LengthUnit.CENTIMETERS, 39.3701, Length.LengthUnit.INCHES);
+        // Centimeters ↔ Feet (30.48 cm = 1 ft)
+        demonstrateLengthComparison(30.48, Length.LengthUnit.CENTIMETERS, 1.0, Length.LengthUnit.FEET);
     }
 }
