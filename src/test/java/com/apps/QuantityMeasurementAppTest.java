@@ -10,16 +10,18 @@ import java.util.Objects;
  * UC3  : Generic Length + Enum (DRY) with base unit = inches
  * UC4  : Extended Unit Support (YARDS, CENTIMETERS)
  * UC5  : Unit-to-Unit Conversion API (same category: length)
+ * UC6  : Addition of two Length units (sum in the unit of the first operand by default)
  *
  * Notes:
  * - Length.LengthUnit conversion factors are defined relative to INCHES (base).
  * - Equality compares values after converting both operands to inches using a small epsilon.
  * - UC5 adds convertTo(...) (instance) and convert(...) (static) to perform conversions.
- *   Conversion results are rounded to 2 decimals for deterministic display.
+ * - UC6 adds add(...) for summing lengths of possibly different units.
+ *   Arithmetic normalizes both operands to base, adds, converts to result unit, and rounds to 2 decimals.
  */
 public class QuantityMeasurementAppTest {
 
-    // ===== UC3/UC4/UC5: Unified Length with nested enum =====
+    // ===== UC3/UC4/UC5/UC6: Unified Length with nested enum =====
     public static class Length {
 
         public enum LengthUnit {
@@ -93,6 +95,40 @@ public class QuantityMeasurementAppTest {
             double base = from.toInches(value);
             double converted = to.fromInches(base);
             return round(converted, 2);
+        }
+
+        // ===== UC6: Addition APIs =====
+        /**
+         * Adds another {@code Length} to this one.
+         * The result is returned in this instance's unit (unit of the first operand).
+         * Immutability: returns a new Length.
+         */
+        public Length add(Length that) {
+            if (that == null) throw new IllegalArgumentException("Length to add cannot be null");
+            double sumInches = this.toBase() + that.toBase();
+            double sumInThisUnit = this.unit.fromInches(sumInches);
+            return new Length(round(sumInThisUnit, 2), this.unit);
+        }
+
+        /** Static helper for addition; result unit = {@code a.unit}. */
+        public static Length add(Length a, Length b) {
+            if (a == null || b == null) throw new IllegalArgumentException("Lengths cannot be null");
+            return a.add(b);
+        }
+
+        /**
+         * Static numeric addition with explicit result unit.
+         * Sums v1 in u1 and v2 in u2, returns numeric value in resultUnit (rounded to 2 decimals).
+         */
+        public static double add(double v1, LengthUnit u1, double v2, LengthUnit u2, LengthUnit resultUnit) {
+            if (u1 == null || u2 == null || resultUnit == null)
+                throw new IllegalArgumentException("Units cannot be null");
+            if (Double.isNaN(v1) || Double.isInfinite(v1) || Double.isNaN(v2) || Double.isInfinite(v2))
+                throw new IllegalArgumentException("Values must be finite");
+
+            double sumInches = u1.toInches(v1) + u2.toInches(v2);
+            double inResult = resultUnit.fromInches(sumInches);
+            return round(inResult, 2);
         }
 
         // Compare with tolerance (instead of exact Double.compare)
@@ -220,6 +256,31 @@ public class QuantityMeasurementAppTest {
         return dst;
     }
 
+    // ===== UC6 demos (Addition) =====
+    /** Add two Lengths; result unit = unit of first operand. */
+    public static Length demonstrateLengthAddition(Length a, Length b) {
+        Length sum = a.add(b);
+        System.out.println("Add: " + a + " + " + b + " = " + sum + " (in " + a.getUnit() + ")");
+        return sum;
+    }
+
+    /** Add raw values; result unit = unit of first operand. */
+    public static Length demonstrateLengthAddition(double v1, Length.LengthUnit u1,
+                                                   double v2, Length.LengthUnit u2) {
+        Length a = new Length(v1, u1);
+        Length b = new Length(v2, u2);
+        return demonstrateLengthAddition(a, b);
+    }
+
+    /** Add raw values with explicit result unit (returns numeric). */
+    public static double demonstrateLengthAddition(double v1, Length.LengthUnit u1,
+                                                   double v2, Length.LengthUnit u2,
+                                                   Length.LengthUnit resultUnit) {
+        double sum = Length.add(v1, u1, v2, u2, resultUnit);
+        System.out.println("Add: " + v1 + " " + u1 + " + " + v2 + " " + u2 + " = " + sum + " " + resultUnit);
+        return sum;
+    }
+
     public static void main(String[] args) {
         System.out.println("=== UC1: Feet Equality ===");
         demonstrateFeetEquality();
@@ -249,5 +310,20 @@ public class QuantityMeasurementAppTest {
         demonstrateLengthConversion(1.0, Length.LengthUnit.YARDS, Length.LengthUnit.CENTIMETERS); // 91.44 cm
         demonstrateLengthConversion(new Length(30.48, Length.LengthUnit.CENTIMETERS),
                 Length.LengthUnit.FEET);                                      // 1.00 ft
+
+        System.out.println("\n=== UC6: Addition of Lengths ===");
+        // Matches your example list (result in unit of first operand)
+        demonstrateLengthAddition(1.0, Length.LengthUnit.FEET, 2.0, Length.LengthUnit.FEET);            // -> 3.00 FEET
+        demonstrateLengthAddition(1.0, Length.LengthUnit.FEET, 12.0, Length.LengthUnit.INCHES);         // -> 2.00 FEET
+        demonstrateLengthAddition(12.0, Length.LengthUnit.INCHES, 1.0, Length.LengthUnit.FEET);         // -> 24.00 INCHES
+        demonstrateLengthAddition(1.0, Length.LengthUnit.YARDS, 3.0, Length.LengthUnit.FEET);           // -> 2.00 YARDS
+        demonstrateLengthAddition(36.0, Length.LengthUnit.INCHES, 1.0, Length.LengthUnit.YARDS);        // -> 72.00 INCHES
+        demonstrateLengthAddition(2.54, Length.LengthUnit.CENTIMETERS, 1.0, Length.LengthUnit.INCHES);  // -> ~5.08 CM
+        demonstrateLengthAddition(5.0, Length.LengthUnit.FEET, 0.0, Length.LengthUnit.INCHES);          // -> 5.00 FEET
+        demonstrateLengthAddition(5.0, Length.LengthUnit.FEET, -2.0, Length.LengthUnit.FEET);           // -> 3.00 FEET
+
+        // Example with explicit result unit numeric variant
+        demonstrateLengthAddition(1.0, Length.LengthUnit.FEET, 30.48, Length.LengthUnit.CENTIMETERS,
+                Length.LengthUnit.INCHES); // 1 ft + 30.48 cm = 24.00 in
     }
 }
